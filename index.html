@@ -1,0 +1,703 @@
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Дневной трекер задач</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        function App() {
+            const [tasks, setTasks] = useState([]);
+            const [input, setInput] = useState('');
+            const [currentDate, setCurrentDate] = useState('');
+            const [notification, setNotification] = useState('');
+
+            const getToday = () => {
+                const d = new Date();
+                return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+            };
+
+            const formatDate = (dateStr) => {
+                const [y, m, d] = dateStr.split('-').map(Number);
+                const date = new Date(y, m - 1, d);
+                return date.toLocaleDateString('ru-RU', {
+                    weekday: 'long',
+                    day: 'numeric',
+                    month: 'long'
+                });
+            };
+
+            useEffect(() => {
+                const saved = localStorage.getItem('tasks');
+                const savedDate = localStorage.getItem('date') || getToday();
+                const today = getToday();
+
+                if (savedDate !== today) {
+                    const oldTasks = saved ? JSON.parse(saved) : [];
+                    const carried = oldTasks
+                        .filter(t => !t.done)
+                        .map(t => ({ ...t, carryCount: (t.carryCount || 0) + 1 }));
+
+                    setTasks(carried);
+                    localStorage.setItem('tasks', JSON.stringify(carried));
+                    localStorage.setItem('date', today);
+                    setCurrentDate(today);
+
+                    if (carried.length > 0) {
+                        setNotification(`Перенесено задач: ${carried.length}`);
+                        setTimeout(() => setNotification(''), 5000);
+                    }
+                } else {
+                    setTasks(saved ? JSON.parse(saved) : []);
+                    setCurrentDate(today);
+                }
+            }, []);
+
+            const addTask = () => {
+                if (!input.trim()) return;
+                const newTask = {
+                    id: Date.now(),
+                    text: input.trim(),
+                    done: false,
+                    carryCount: 0
+                };
+                const updated = [...tasks, newTask];
+                setTasks(updated);
+                localStorage.setItem('tasks', JSON.stringify(updated));
+                setInput('');
+            };
+
+            const toggleTask = (id) => {
+                const updated = tasks.map(t =>
+                    t.id === id ? { ...t, done: !t.done } : t
+                );
+                setTasks(updated);
+                localStorage.setItem('tasks', JSON.stringify(updated));
+            };
+
+            const deleteTask = (id) => {
+                const updated = tasks.filter(t => t.id !== id);
+                setTasks(updated);
+                localStorage.setItem('tasks', JSON.stringify(updated));
+            };
+
+            const doneCount = tasks.filter(t => t.done).length;
+            const total = tasks.length;
+            const percent = total > 0 ? Math.round((doneCount / total) * 100) : 0;
+
+            return (
+                <div style={{
+                    minHeight: '100vh',
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    padding: '20px',
+                    fontFamily: 'Arial, sans-serif'
+                }}>
+                    <div style={{
+                        maxWidth: '600px',
+                        margin: '0 auto',
+                        background: 'white',
+                        borderRadius: '16px',
+                        padding: '24px',
+                        boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
+                    }}>
+                        <h1 style={{
+                            fontSize: '24px',
+                            fontWeight: 'bold',
+                            marginBottom: '8px',
+                            color: '#333'
+                        }}>
+                            📋 Трекер задач
+                        </h1>
+                        <p style={{
+                            color: '#666',
+                            marginBottom: '24px',
+                            textTransform: 'capitalize'
+                        }}>
+                            {formatDate(currentDate)}
+                        </p>
+
+                        {notification && (
+                            <div style={{
+                                marginBottom: '16px',
+                                padding: '12px',
+                                background: '#fff3cd',
+                                border: '1px solid #ffc107',
+                                borderRadius: '8px',
+                                color: '#856404',
+                                fontSize: '14px'
+                            }}>
+                                ⚡ {notification}
+                            </div>
+                        )}
+
+                        {total > 0 && (
+                            <div style={{ marginBottom: '24px' }}>
+                                <div style={{
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    marginBottom: '8px',
+                                    fontSize: '14px',
+                                    color: '#666'
+                                }}>
+                                    <span>Выполнено: {doneCount} из {total}</span>
+                                    <span>{percent}%</span>
+                                </div>
+                                <div style={{
+                                    width: '100%',
+                                    height: '8px',
+                                    background: '#e0e0e0',
+                                    borderRadius: '4px',
+                                    overflow: 'hidden'
+                                }}>
+                                    <div style={{
+                                        width: `${percent}%`,
+                                        height: '100%',
+                                        background: 'linear-gradient(to right, #667eea, #764ba2)',
+                                        transition: 'width 0.3s'
+                                    }} />
+                                </div>
+                            </div>
+                        )}
+
+                        <div style={{ display: 'flex', gap: '8px', marginBottom: '24px' }}>
+                            <input
+                                type="text"
+                                value={input}
+                                onChange={(e) => setInput(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && addTask()}
+                                placeholder="Новая задача..."
+                                style={{
+                                    flex: 1,
+                                    padding: '12px 16px',
+                                    border: '2px solid #e0e0e0',
+                                    borderRadius: '8px',
+                                    fontSize: '16px',
+                                    outline: 'none'
+                                }}
+                            />
+                            <button
+                                onClick={addTask}
+                                style={{
+                                    padding: '12px 24px',
+                                    background: '#667eea',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '8px',
+                                    fontSize: '16px',
+                                    fontWeight: 'bold',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                +
+                            </button>
+                        </div>
+
+                        <div>
+                            {tasks.length === 0 ? (
+                                <p style={{
+                                    textAlign: 'center',
+                                    color: '#999',
+                                    padding: '40px 0'
+                                }}>
+                                    Добавьте первую задачу
+                                </p>
+                            ) : (
+                                tasks.map(task => (
+                                    <div
+                                        key={task.id}
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '12px',
+                                            padding: '16px',
+                                            background: task.done ? '#f5f5f5' : '#fafafa',
+                                            borderRadius: '8px',
+                                            marginBottom: '8px',
+                                            border: '1px solid #e0e0e0'
+                                        }}
+                                    >
+                                        <button
+                                            onClick={() => toggleTask(task.id)}
+                                            style={{
+                                                width: '24px',
+                                                height: '24px',
+                                                borderRadius: '50%',
+                                                border: `2px solid ${task.done ? '#4caf50' : '#ccc'}`,
+                                                background: task.done ? '#4caf50' : 'white',
+                                                cursor: 'pointer',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                flexShrink: 0,
+                                                padding: 0
+                                            }}
+                                        >
+                                            {task.done && <span style={{ color: 'white', fontSize: '14px' }}>✓</span>}
+                                        </button>
+                                        <div style={{ flex: 1 }}>
+                                            <p style={{
+                                                margin: 0,
+                                                textDecoration: task.done ? 'line-through' : 'none',
+                                                color: task.done ? '#999' : '#333'
+                                            }}>
+                                                {task.text}
+                                            </p>
+                                            {task.carryCount > 0 && !task.done && (
+                                                <span style={{
+                                                    fontSize: '12px',
+                                                    color: '#ff9800',
+                                                    background: '#fff3e0',
+                                                    padding: '2px 8px',
+                                                    borderRadius: '12px',
+                                                    marginTop: '4px',
+                                                    display: 'inline-block'
+                                                }}>
+                                                    🔄 Перенесено {task.carryCount} {task.carryCount === 1 ? 'раз' : 'раза'}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <button
+                                            onClick={() => deleteTask(task.id)}
+                                            style={{
+                                                padding: '8px',
+                                                background: 'none',
+                                                border: 'none',
+                                                cursor: 'pointer',
+                                                color: '#f44336',
+                                                fontSize: '18px'
+                                            }}
+                                        >
+                                            🗑️
+                                        </button>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+
+                        <p style={{
+                            textAlign: 'center',
+                            marginTop: '24px',
+                            fontSize: '12px',
+                            color: '#999'
+                        }}>
+                            Невыполненные задачи автоматически переносятся на следующий день
+                        </p>
+                    </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
+
+
++++ index.html (修改后)
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Дневной трекер задач</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .container {
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+        }
+
+        .card {
+            max-width: 600px;
+            width: 100%;
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+
+        h1 {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 8px;
+            color: #333;
+        }
+
+        .date {
+            color: #666;
+            margin-bottom: 24px;
+            text-transform: capitalize;
+        }
+
+        .notification {
+            margin-bottom: 16px;
+            padding: 12px;
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 8px;
+            color: #856404;
+            font-size: 14px;
+            display: none;
+        }
+
+        .progress-container {
+            margin-bottom: 24px;
+            display: none;
+        }
+
+        .progress-info {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 14px;
+            color: #666;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e0e0e0;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(to right, #667eea, #764ba2);
+            transition: width 0.3s;
+            width: 0%;
+        }
+
+        .input-container {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 24px;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            padding: 12px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+            outline: none;
+            font-family: inherit;
+        }
+
+        input[type="text"]:focus {
+            border-color: #667eea;
+        }
+
+        .add-btn {
+            padding: 12px 24px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .add-btn:hover {
+            background: #5568d3;
+        }
+
+        .empty-state {
+            text-align: center;
+            color: #999;
+            padding: 40px 0;
+        }
+
+        .task {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 16px;
+            background: #fafafa;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            border: 1px solid #e0e0e0;
+        }
+
+        .task.done {
+            background: #f5f5f5;
+        }
+
+        .checkbox {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            border: 2px solid #ccc;
+            background: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            font-size: 14px;
+            color: white;
+        }
+
+        .checkbox.done {
+            border-color: #4caf50;
+            background: #4caf50;
+        }
+
+        .task-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .task-text {
+            color: #333;
+            word-break: break-word;
+        }
+
+        .task.done .task-text {
+            text-decoration: line-through;
+            color: #999;
+        }
+
+        .carry-badge {
+            font-size: 12px;
+            color: #ff9800;
+            background: #fff3e0;
+            padding: 2px 8px;
+            border-radius: 12px;
+            margin-top: 4px;
+            display: inline-block;
+        }
+
+        .delete-btn {
+            padding: 8px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 18px;
+            flex-shrink: 0;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 24px;
+            font-size: 12px;
+            color: #999;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <h1>📋 Трекер задач</h1>
+            <p class="date" id="date"></p>
+            <div id="notification" class="notification"></div>
+            <div id="progress-container" class="progress-container">
+                <div class="progress-info">
+                    <span id="progress-text"></span>
+                    <span id="progress-percent"></span>
+                </div>
+                <div class="progress-bar">
+                    <div id="progress-fill" class="progress-fill"></div>
+                </div>
+            </div>
+            <div class="input-container">
+                <input type="text" id="task-input" placeholder="Новая задача...">
+                <button class="add-btn" id="add-btn">+</button>
+            </div>
+            <div id="tasks-container"></div>
+            <p class="footer">Невыполненные задачи автоматически переносятся на следующий день</p>
+        </div>
+    </div>
+    <script>
+        (function() {
+            var tasks = [];
+            var currentDate = '';
+
+            function getToday() {
+                var d = new Date();
+                return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+            }
+
+            function formatDate(dateStr) {
+                var parts = dateStr.split('-');
+                var date = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+                return date.toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' });
+            }
+
+            function escapeHtml(text) {
+                var div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            }
+
+            function saveTasks() {
+                localStorage.setItem('tasks', JSON.stringify(tasks));
+                localStorage.setItem('date', currentDate);
+            }
+
+            function showNotification(message) {
+                var el = document.getElementById('notification');
+                el.textContent = '\u26A1 ' + message;
+                el.style.display = 'block';
+                setTimeout(function() { el.style.display = 'none'; }, 5000);
+            }
+
+            function render() {
+                document.getElementById('date').textContent = formatDate(currentDate);
+
+                var doneCount = 0;
+                for (var i = 0; i < tasks.length; i++) {
+                    if (tasks[i].done) doneCount++;
+                }
+                var total = tasks.length;
+                var percent = total > 0 ? Math.round((doneCount / total) * 100) : 0;
+
+                var progressContainer = document.getElementById('progress-container');
+                if (total > 0) {
+                    progressContainer.style.display = 'block';
+                    document.getElementById('progress-text').textContent = 'Выполнено: ' + doneCount + ' из ' + total;
+                    document.getElementById('progress-percent').textContent = percent + '%';
+                    document.getElementById('progress-fill').style.width = percent + '%';
+                } else {
+                    progressContainer.style.display = 'none';
+                }
+
+                var container = document.getElementById('tasks-container');
+                if (tasks.length === 0) {
+                    container.innerHTML = '<p class="empty-state">Добавьте первую задачу</p>';
+                } else {
+                    var html = '';
+                    for (var j = 0; j < tasks.length; j++) {
+                        var task = tasks[j];
+                        var taskClass = 'task' + (task.done ? ' done' : '');
+                        var checkClass = 'checkbox' + (task.done ? ' done' : '');
+                        var checkContent = task.done ? '\u2713' : '';
+                        var carryBadge = (task.carryCount > 0 && !task.done)
+                            ? '<div class="carry-badge">\uD83D\uDD04 Перенесено ' + task.carryCount + (task.carryCount === 1 ? ' раз' : ' раза') + '</div>'
+                            : '';
+
+                        html += '<div class="' + taskClass + '">' +
+                            '<div class="' + checkClass + '" data-id="' + task.id + '">' + checkContent + '</div>' +
+                            '<div class="task-content">' +
+                                '<div class="task-text">' + escapeHtml(task.text) + '</div>' +
+                                carryBadge +
+                            '</div>' +
+                            '<button class="delete-btn" data-delete-id="' + task.id + '">\uD83D\uDDD1\uFE0F</button>' +
+                        '</div>';
+                    }
+                    container.innerHTML = html;
+                }
+            }
+
+            function addTask() {
+                var input = document.getElementById('task-input');
+                var text = input.value.trim();
+                if (!text) return;
+                tasks.push({ id: Date.now(), text: text, done: false, carryCount: 0 });
+                input.value = '';
+                saveTasks();
+                render();
+            }
+
+            function toggleTask(id) {
+                for (var i = 0; i < tasks.length; i++) {
+                    if (tasks[i].id === id) {
+                        tasks[i].done = !tasks[i].done;
+                        break;
+                    }
+                }
+                saveTasks();
+                render();
+            }
+
+            function deleteTask(id) {
+                var newTasks = [];
+                for (var i = 0; i < tasks.length; i++) {
+                    if (tasks[i].id !== id) newTasks.push(tasks[i]);
+                }
+                tasks = newTasks;
+                saveTasks();
+                render();
+            }
+
+            // Event delegation
+            document.getElementById('tasks-container').addEventListener('click', function(e) {
+                var target = e.target;
+                if (target.classList.contains('checkbox')) {
+                    var id = parseInt(target.getAttribute('data-id'));
+                    toggleTask(id);
+                } else if (target.classList.contains('delete-btn') || target.closest('.delete-btn')) {
+                    var btn = target.classList.contains('delete-btn') ? target : target.closest('.delete-btn');
+                    var deleteId = parseInt(btn.getAttribute('data-delete-id'));
+                    deleteTask(deleteId);
+                }
+            });
+
+            document.getElementById('add-btn').addEventListener('click', addTask);
+            document.getElementById('task-input').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') addTask();
+            });
+
+            // Init
+            var saved = localStorage.getItem('tasks');
+            var savedDate = localStorage.getItem('date') || getToday();
+            var today = getToday();
+
+            if (savedDate !== today) {
+                var oldTasks = saved ? JSON.parse(saved) : [];
+                tasks = [];
+                for (var i = 0; i < oldTasks.length; i++) {
+                    if (!oldTasks[i].done) {
+                        var t = oldTasks[i];
+                        t.carryCount = (t.carryCount || 0) + 1;
+                        tasks.push(t);
+                    }
+                }
+                currentDate = today;
+                saveTasks();
+                if (tasks.length > 0) {
+                    showNotification('Перенесено задач: ' + tasks.length);
+                }
+            } else {
+                tasks = saved ? JSON.parse(saved) : [];
+                currentDate = today;
+            }
+
+            render();
+        })();
+    </script>
+</body>
+</html>
